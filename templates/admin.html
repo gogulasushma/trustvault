@@ -1,5 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Admin</h1>
-<p>Only admins can see this page.</p>
+<h1>Admin: audit log</h1>
+<p>Total events: {{ total }} | Refused attempts: {{ refused }}</p>
+<p>Showing the latest 100 events. Admins see activity only, not document contents.</p>
+<table border="1" cellpadding="6">
+  <tr>
+    <th>ID</th><th>Time</th><th>User</th><th>Action</th>
+    <th>Document</th><th>Result</th><th>Details</th>
+  </tr>
+  {% for row in logs %}
+  <tr>
+    <td>{{ row.id }}</td>
+    <td>{{ row.timestamp }}</td>
+    <td>{{ row.username or '(unknown)' }}</td>
+    <td>{{ row.action }}</td>
+    <td>{{ row.document_id or '' }}</td>
+    <td>{{ 'allowed' if row.allowed else 'REFUSED' }}</td>
+    <td>{{ row.details or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
 {% endblock %}

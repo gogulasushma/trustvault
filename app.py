@@ -169,7 +169,18 @@ def dashboard():
 @app.route("/admin")
 @role_required("admin")
 def admin():
-    return render_template("admin.html")
+    db = get_db()
+    logs = db.execute(
+        "SELECT a.id, a.timestamp, u.username, a.action, a.document_id, "
+        "a.allowed, a.details "
+        "FROM audit_log a LEFT JOIN users u ON u.id = a.user_id "
+        "ORDER BY a.id DESC LIMIT 100"
+    ).fetchall()
+    total = db.execute("SELECT COUNT(*) AS n FROM audit_log").fetchone()["n"]
+    refused = db.execute(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE allowed = 0"
+    ).fetchone()["n"]
+    return render_template("admin.html", logs=logs, total=total, refused=refused)
 
 
 @app.route("/upload", methods=["GET", "POST"])
