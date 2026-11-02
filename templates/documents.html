@@ -2,6 +2,22 @@
 {% block content %}
 <h1>My documents</h1>
 {% if g.user.role == 'owner' %}<p><a href="{{ url_for('upload') }}">Upload a document</a></p>{% endif %}
+
+<form method="get">
+  <input name="q" placeholder="Name contains" value="{{ q }}">
+  <input name="owner" placeholder="Owner" value="{{ owner }}">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option {% if c == category %}selected{% endif %}>{{ c }}</option>
+    {% endfor %}
+  </select>
+  From <input type="date" name="date_from" value="{{ date_from }}">
+  To <input type="date" name="date_to" value="{{ date_to }}">
+  <button type="submit">Search</button>
+  <a href="{{ url_for('documents') }}">Clear</a>
+</form>
+
 {% if docs %}
 <table border="1" cellpadding="6">
   <tr><th>Name</th><th>Category</th><th>Owner</th><th>Your access</th><th>Size (bytes)</th><th>Uploaded</th><th></th></tr>
@@ -21,6 +37,6 @@
   {% endfor %}
 </table>
 {% else %}
-<p>No documents yet.</p>
+<p>No documents found.</p>
 {% endif %}
 {% endblock %}

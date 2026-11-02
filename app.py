@@ -225,18 +225,46 @@ def upload():
 @login_required
 def documents():
     uid = g.user["id"]
-    docs = get_db().execute(
+    q = request.args.get("q", "").strip()[:100]
+    owner = request.args.get("owner", "").strip()[:30]
+    category = request.args.get("category", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+
+    sql = (
         "SELECT d.id, d.original_name, d.category, d.size_bytes, d.uploaded_at, "
         "u.username AS owner, "
         "CASE WHEN d.owner_id = ? THEN 'owner' ELSE p.level END AS access "
         "FROM documents d "
         "JOIN users u ON u.id = d.owner_id "
         "LEFT JOIN permissions p ON p.document_id = d.id AND p.user_id = ? "
-        "WHERE d.deleted = 0 AND (d.owner_id = ? OR p.user_id IS NOT NULL) "
-        "ORDER BY d.uploaded_at DESC",
-        (uid, uid, uid),
-    ).fetchall()
-    return render_template("documents.html", docs=docs)
+        "WHERE d.deleted = 0 AND (d.owner_id = ? OR p.user_id IS NOT NULL)"
+    )
+    params = [uid, uid, uid]
+
+    if q:
+        sql += " AND d.original_name LIKE ?"
+        params.append("%" + q + "%")
+    if owner:
+        sql += " AND u.username LIKE ?"
+        params.append("%" + owner + "%")
+    if category in CATEGORIES:
+        sql += " AND d.category = ?"
+        params.append(category)
+    if date_from:
+        sql += " AND date(d.uploaded_at) >= date(?)"
+        params.append(date_from)
+    if date_to:
+        sql += " AND date(d.uploaded_at) <= date(?)"
+        params.append(date_to)
+
+    sql += " ORDER BY d.uploaded_at DESC"
+    docs = get_db().execute(sql, params).fetchall()
+    return render_template(
+        "documents.html", docs=docs, categories=CATEGORIES,
+        q=q, owner=owner, category=category,
+        date_from=date_from, date_to=date_to,
+    )
 
 
 @app.route("/documents/<int:doc_id>/download")
