@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TrustVault</title>
+</head>
+<body>
+  <nav>
+    <strong>TrustVault</strong>
+    {% if g.user %}
+      | {{ g.user.username }} ({{ g.user.role }})
+      {% if g.user.role == 'admin' %} | <a href="{{ url_for('admin') }}">Admin</a>{% endif %}
+      <form method="post" action="{{ url_for('logout') }}" style="display:inline">
+        <button type="submit">Log out</button>
+      </form>
+    {% endif %}
+  </nav>
+  {% for message in get_flashed_messages() %}
+    <p>{{ message }}</p>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</body>
+</html>
