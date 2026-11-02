@@ -4,9 +4,20 @@
 {% if g.user.role == 'owner' %}<p><a href="{{ url_for('upload') }}">Upload a document</a></p>{% endif %}
 {% if docs %}
 <table border="1" cellpadding="6">
-  <tr><th>Name</th><th>Category</th><th>Size (bytes)</th><th>Uploaded</th></tr>
+  <tr><th>Name</th><th>Category</th><th>Owner</th><th>Your access</th><th>Size (bytes)</th><th>Uploaded</th><th></th></tr>
   {% for d in docs %}
-  <tr><td>{{ d.original_name }}</td><td>{{ d.category }}</td><td>{{ d.size_bytes }}</td><td>{{ d.uploaded_at }}</td></tr>
+  <tr>
+    <td>{{ d.original_name }}</td>
+    <td>{{ d.category }}</td>
+    <td>{{ d.owner }}</td>
+    <td>{{ d.access }}</td>
+    <td>{{ d.size_bytes }}</td>
+    <td>{{ d.uploaded_at }}</td>
+    <td>
+      <a href="{{ url_for('download', doc_id=d.id) }}">Download</a>
+      {% if d.access == 'owner' %} | <a href="{{ url_for('share', doc_id=d.id) }}">Share</a>{% endif %}
+    </td>
+  </tr>
   {% endfor %}
 </table>
 {% else %}

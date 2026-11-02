@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 
 from flask import (Flask, abort, flash, g, redirect, render_template,
-                   request, session, url_for)
+                   request, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -46,6 +46,24 @@ def log_event(action, allowed, user_id=None, document_id=None, details=None):
         (user_id, action, document_id, 1 if allowed else 0, details),
     )
     db.commit()
+
+
+def get_access(user, document_id):
+    """THE permission check. Returns 'owner', 'edit', 'read' or None.
+    Reads the database on every call, so a revoke works immediately."""
+    db = get_db()
+    doc = db.execute(
+        "SELECT owner_id, deleted FROM documents WHERE id = ?", (document_id,)
+    ).fetchone()
+    if doc is None or doc["deleted"]:
+        return None
+    if doc["owner_id"] == user["id"]:
+        return "owner"
+    grant = db.execute(
+        "SELECT level FROM permissions WHERE document_id = ? AND user_id = ?",
+        (document_id, user["id"]),
+    ).fetchone()
+    return grant["level"] if grant else None
 
 
 @app.before_request
@@ -195,13 +213,91 @@ def upload():
 @app.route("/documents")
 @login_required
 def documents():
+    uid = g.user["id"]
     docs = get_db().execute(
-        "SELECT id, original_name, category, size_bytes, uploaded_at "
-        "FROM documents WHERE owner_id = ? AND deleted = 0 "
-        "ORDER BY uploaded_at DESC",
-        (g.user["id"],),
+        "SELECT d.id, d.original_name, d.category, d.size_bytes, d.uploaded_at, "
+        "u.username AS owner, "
+        "CASE WHEN d.owner_id = ? THEN 'owner' ELSE p.level END AS access "
+        "FROM documents d "
+        "JOIN users u ON u.id = d.owner_id "
+        "LEFT JOIN permissions p ON p.document_id = d.id AND p.user_id = ? "
+        "WHERE d.deleted = 0 AND (d.owner_id = ? OR p.user_id IS NOT NULL) "
+        "ORDER BY d.uploaded_at DESC",
+        (uid, uid, uid),
     ).fetchall()
     return render_template("documents.html", docs=docs)
+
+
+@app.route("/documents/<int:doc_id>/download")
+@login_required
+def download(doc_id):
+    level = get_access(g.user, doc_id)
+    if level is None:
+        log_event("download", False, user_id=g.user["id"], document_id=doc_id)
+        abort(404)
+    doc = get_db().execute(
+        "SELECT stored_name, original_name FROM documents WHERE id = ?", (doc_id,)
+    ).fetchone()
+    log_event("download", True, user_id=g.user["id"], document_id=doc_id)
+    return send_from_directory(
+        UPLOAD_FOLDER, doc["stored_name"],
+        as_attachment=True, download_name=doc["original_name"],
+    )
+
+
+@app.route("/documents/<int:doc_id>/share", methods=["GET", "POST"])
+@login_required
+def share(doc_id):
+    if get_access(g.user, doc_id) != "owner":
+        log_event("share_page", False, user_id=g.user["id"], document_id=doc_id)
+        abort(404)
+    db = get_db()
+    doc = db.execute(
+        "SELECT id, original_name FROM documents WHERE id = ?", (doc_id,)
+    ).fetchone()
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        username = request.form.get("username", "").strip()
+        target = db.execute(
+            "SELECT id, username FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if target is None or target["id"] == g.user["id"]:
+            flash("Choose another existing user.")
+        elif action == "grant":
+            level = request.form.get("level", "")
+            if level not in ("read", "edit"):
+                flash("Invalid access level.")
+            else:
+                db.execute(
+                    "INSERT INTO permissions (document_id, user_id, level, granted_by) "
+                    "VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(document_id, user_id) DO UPDATE SET "
+                    "level = excluded.level, granted_by = excluded.granted_by, "
+                    "granted_at = CURRENT_TIMESTAMP",
+                    (doc_id, target["id"], level, g.user["id"]),
+                )
+                db.commit()
+                log_event("grant", True, user_id=g.user["id"], document_id=doc_id,
+                          details=target["username"] + ":" + level)
+                flash("Access granted.")
+        elif action == "revoke":
+            db.execute(
+                "DELETE FROM permissions WHERE document_id = ? AND user_id = ?",
+                (doc_id, target["id"]),
+            )
+            db.commit()
+            log_event("revoke", True, user_id=g.user["id"], document_id=doc_id,
+                      details=target["username"])
+            flash("Access revoked.")
+        return redirect(url_for("share", doc_id=doc_id))
+
+    grants = db.execute(
+        "SELECT u.username, p.level FROM permissions p "
+        "JOIN users u ON u.id = p.user_id WHERE p.document_id = ?",
+        (doc_id,),
+    ).fetchall()
+    return render_template("share.html", doc=doc, grants=grants)
 
 
 if __name__ == "__main__":

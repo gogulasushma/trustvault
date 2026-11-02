@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Share: {{ doc.original_name }}</h1>
+
+<h2>Give access</h2>
+<form method="post">
+  <input type="hidden" name="action" value="grant">
+  <p><label>Username <input name="username" required></label></p>
+  <p><label>Level
+    <select name="level"><option>read</option><option>edit</option></select>
+  </label></p>
+  <button type="submit">Grant access</button>
+</form>
+
+<h2>Who has access</h2>
+{% if grants %}
+<table border="1" cellpadding="6">
+  <tr><th>User</th><th>Level</th><th></th></tr>
+  {% for grant in grants %}
+  <tr>
+    <td>{{ grant.username }}</td>
+    <td>{{ grant.level }}</td>
+    <td>
+      <form method="post" style="display:inline">
+        <input type="hidden" name="action" value="revoke">
+        <input type="hidden" name="username" value="{{ grant.username }}">
+        <button type="submit">Revoke</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>Nobody else has access.</p>
+{% endif %}
+<p><a href="{{ url_for('documents') }}">Back to documents</a></p>
+{% endblock %}
