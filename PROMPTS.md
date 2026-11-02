@@ -19,3 +19,12 @@
 5. `debug=True` must be turned off before deployment.
 
 **What I will do:** Fix these in later commits and write each fix as its own entry.
+
+## Entry 2: 2 Nov 2026
+**What I asked:** Write automated tests proving that one user cannot reach another user's documents.
+
+**What the AI produced:** 14 pytest tests using a temporary database, covering no-login, no-grant, other owner, admin without grant, grant, revoke, search, upload and admin page.
+
+**What was wrong:** The AI told me there were 13 tests, but pytest collected 14. I trusted the pytest output instead of the AI's number.
+
+**How I checked the tests are meaningful:** I commented out the permission check in the `download` route on purpose. Several tests failed, including the revoke test. Then I restored the file with `git checkout app.py` and all 14 passed again.
