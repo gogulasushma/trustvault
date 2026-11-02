@@ -10,6 +10,7 @@
     <strong>TrustVault</strong>
     {% if g.user %}
       | {{ g.user.username }} ({{ g.user.role }})
+      | <a href="{{ url_for('documents') }}">My documents</a>
       {% if g.user.role == 'admin' %} | <a href="{{ url_for('admin') }}">Admin</a>{% endif %}
       <form method="post" action="{{ url_for('logout') }}" style="display:inline">
         <button type="submit">Log out</button>

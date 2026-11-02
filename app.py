@@ -1,11 +1,14 @@
 import os
 import secrets
 import sqlite3
+import uuid
 from functools import wraps
+from pathlib import Path
 
 from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -13,6 +16,11 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 DATABASE = "trustvault.db"
+UPLOAD_FOLDER = Path(__file__).parent / "uploads"
+UPLOAD_FOLDER.mkdir(exist_ok=True)
+ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg", "docx", "xlsx"}
+CATEGORIES = ["Contract", "HR", "Finance", "Audit", "Other"]
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB limit
 
 
 def get_db():
@@ -144,6 +152,56 @@ def dashboard():
 @role_required("admin")
 def admin():
     return render_template("admin.html")
+
+
+@app.route("/upload", methods=["GET", "POST"])
+@role_required("owner")
+def upload():
+    if request.method == "POST":
+        file = request.files.get("file")
+        category = request.form.get("category", "")
+        if file is None or file.filename == "":
+            flash("Please choose a file.")
+            return render_template("upload.html", categories=CATEGORIES)
+        if category not in CATEGORIES:
+            flash("Please choose a valid category.")
+            return render_template("upload.html", categories=CATEGORIES)
+
+        original_name = secure_filename(file.filename)
+        extension = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
+        if extension not in ALLOWED_EXTENSIONS:
+            log_event("upload", False, user_id=g.user["id"],
+                      details="blocked file type: " + extension[:10])
+            flash("This file type is not allowed.")
+            return render_template("upload.html", categories=CATEGORIES)
+
+        stored_name = uuid.uuid4().hex + "." + extension
+        path = UPLOAD_FOLDER / stored_name
+        file.save(path)
+
+        db = get_db()
+        cursor = db.execute(
+            "INSERT INTO documents (owner_id, original_name, stored_name, category, size_bytes) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (g.user["id"], original_name, stored_name, category, path.stat().st_size),
+        )
+        db.commit()
+        log_event("upload", True, user_id=g.user["id"], document_id=cursor.lastrowid)
+        flash("Document uploaded.")
+        return redirect(url_for("documents"))
+    return render_template("upload.html", categories=CATEGORIES)
+
+
+@app.route("/documents")
+@login_required
+def documents():
+    docs = get_db().execute(
+        "SELECT id, original_name, category, size_bytes, uploaded_at "
+        "FROM documents WHERE owner_id = ? AND deleted = 0 "
+        "ORDER BY uploaded_at DESC",
+        (g.user["id"],),
+    ).fetchall()
+    return render_template("documents.html", docs=docs)
 
 
 if __name__ == "__main__":
