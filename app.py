@@ -14,10 +14,12 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE") == "1"
 
-DATABASE = "trustvault.db"
-UPLOAD_FOLDER = Path(__file__).parent / "uploads"
-UPLOAD_FOLDER.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).parent
+DATABASE = os.environ.get("DATABASE_PATH", "trustvault.db")
+UPLOAD_FOLDER = Path(os.environ.get("UPLOAD_PATH", BASE_DIR / "uploads"))
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg", "docx", "xlsx"}
 CATEGORIES = ["Contract", "HR", "Finance", "Audit", "Other"]
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB limit
@@ -36,6 +38,24 @@ def close_db(exception):
     db = g.pop("db", None)
     if db is not None:
         db.close()
+
+
+def bootstrap():
+    """Create the tables if missing. If DEMO_PASSWORD is set, also create
+    three demo accounts (admin1, owner1, viewer1) that do not exist yet."""
+    conn = sqlite3.connect(DATABASE)
+    conn.executescript((BASE_DIR / "schema.sql").read_text(encoding="utf-8"))
+    demo_password = os.environ.get("DEMO_PASSWORD")
+    if demo_password and len(demo_password) >= 10:
+        for username, role in [("admin1", "admin"), ("owner1", "owner"),
+                               ("viewer1", "viewer")]:
+            conn.execute(
+                "INSERT OR IGNORE INTO users (username, password_hash, role) "
+                "VALUES (?, ?, ?)",
+                (username, generate_password_hash(demo_password), role),
+            )
+    conn.commit()
+    conn.close()
 
 
 def log_event(action, allowed, user_id=None, document_id=None, details=None):
@@ -339,5 +359,7 @@ def share(doc_id):
     return render_template("share.html", doc=doc, grants=grants)
 
 
+bootstrap()
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
