@@ -19,3 +19,7 @@ This document details the critical security threats analyzed during the architec
 ## 4. Insecure Session Hijacking & Credential Sniffing
 *   **The Threat:** A malicious entity intercepts session cookie parameters over an unencrypted local link or via client-side cross-site scripting (XSS) vectors, stealing an active session state.
 *   **The Mitigation:** We leveraged Flask's session hardening configuration flags along with production environment variables on Render. The application enforces cookie isolation using `COOKIE_SECURE = 1`, which dictates that cookies can only be transmitted across secure HTTPS tunnels. Additionally, `SESSION_COOKIE_HTTPONLY = True` is declared to completely block JavaScript engines from extracting session data.
+
+## 5. Account lock-out abuse (known trade-off)
+* **The Threat:** The login limit counts failed attempts per username, so someone can lock another user out for 15 minutes by guessing wrong passwords on purpose.
+* **What we did:** We accept this to stop password guessing. A better version would also count attempts per IP address, which is not built yet.

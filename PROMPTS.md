@@ -28,3 +28,12 @@
 **What was wrong:** The AI told me there were 13 tests, but pytest collected 14. I trusted the pytest output instead of the AI's number.
 
 **How I checked the tests are meaningful:** I commented out the permission check in the `download` route on purpose. Several tests failed, including the revoke test. Then I restored the file with `git checkout app.py` and all 14 passed again.
+
+## Entry 3: 6 Nov 2026
+**What I asked:** Add a limit on failed login attempts.
+
+**What the AI produced:** A check in the login route that counts failed logins for a username in the last 15 minutes. After 5 failures, login is refused for that username.
+
+**What I checked:** I added a test that makes 5 wrong logins and then tries the correct password. The test expects the "Too many failed attempts" message and no login. All 15 tests pass.
+
+**Problem I found in the design:** The limit counts attempts per username, not per person. Anyone can lock the admin1 account for 15 minutes by typing wrong passwords on purpose. I decided to keep it and write this in THREATS.md as a known trade-off.

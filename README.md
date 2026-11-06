@@ -37,7 +37,7 @@ Open http://127.0.0.1:5000 and log in as admin1, owner1 or viewer1 with that pas
 
 ## Not finished
 - No CSRF protection on forms yet
-- No limit on login attempts
+
 - Upload checks the file extension only, not the real file content
 - The "edit" access level can be granted but is not used by any feature yet
 - The free server resets uploaded files and the database when it restarts trustvault
