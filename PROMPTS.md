@@ -37,3 +37,19 @@
 **What I checked:** I added a test that makes 5 wrong logins and then tries the correct password. The test expects the "Too many failed attempts" message and no login. All 15 tests pass.
 
 **Problem I found in the design:** The limit counts attempts per username, not per person. Anyone can lock the admin1 account for 15 minutes by typing wrong passwords on purpose. I decided to keep it and write this in THREATS.md as a known trade-off.
+
+## Entry 4: 6 Nov 2026
+**What I asked:** Add CSRF protection, so another website cannot make a logged-in user press Share, Revoke or Log out without knowing.
+
+**What the AI produced:** A random token stored in the user's session, a hidden `csrf_token` field in every form, and a check that rejects any POST request without the right token with a 400 error.
+
+**What I had to change:** The 14 old tests sent forms without a token, so they would have failed. The test file was rewritten to send a token like a real browser. I also had to update five templates, because a form without the token field would be rejected.
+
+**How I checked it:** I added a test that posts a login without a token and expects a 400 error. All 16 tests pass. On my computer I tested Share, Revoke and Log out.
+
+**Not covered:** The token is created once per session and does not change after each request. It protects POST forms only.
+
+## Entry 5: 6 Nov 2026
+**What was wrong:** The first version of THREATS.md called the audit log "immutable" and "searchable". Neither is true for my app. Anyone with direct access to the database file can edit or delete rows, and the admin page only shows the latest 100 events with no search. It also said the session cookie "completely" blocks JavaScript, but the HttpOnly flag only stops JavaScript from reading the cookie.
+
+**What I did instead:** I rewrote THREATS.md so that every claim matches the code. The audit log is now described as append-only and not tamper-proof, and each section lists what is still open. I did this because the judges mark claims that do not match the code.

@@ -1,4 +1,4 @@
-## TrustVault
+# TrustVault
 
 Secure document sharing with role-based access control and an audit trail.
 Built with Python, Flask and SQLite.
@@ -13,6 +13,8 @@ Demo accounts (admin1, owner1, viewer1) and their password are in my submission 
 - Every upload, download, grant, revoke and refused attempt is written to an audit log
 - Admins see the audit log but cannot open a document without a grant
 - Search by name, owner, category and date, limited to documents the user can access
+- Login is locked for a username after 5 failed attempts in 15 minutes
+- Every form has a CSRF token
 
 ## Run it locally (Windows PowerShell)
     python -m venv venv
@@ -30,15 +32,14 @@ Open http://127.0.0.1:5000 and log in as admin1, owner1 or viewer1 with that pas
 ## Files
 - `app.py`: the application
 - `schema.sql`: database tables
+- `API.md`: list of routes
 - `PERMISSIONS.md`: the permission rules
 - `THREATS.md`: threats and mitigations
 - `PROMPTS.md`: where the AI was wrong and what I did
-- `tests/test_access.py`: automated access control tests
+- `tests/test_access.py`: automated tests
 
 ## Not finished
-- No CSRF protection on forms yet
-
 - Upload checks the file extension only, not the real file content
 - The "edit" access level can be granted but is not used by any feature yet
-- The free server resets uploaded files and the database when it restarts trustvault
-Secure document sharing platform with role-based access control and a tamper-evident audit trail
+- The login limit counts attempts per username, so someone can lock another user out for 15 minutes
+- The free server resets uploaded files and the database when it restarts
