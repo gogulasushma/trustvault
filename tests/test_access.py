@@ -184,3 +184,11 @@ def test_refused_attempts_are_in_the_audit_log(client):
     ).fetchall()
     conn.close()
     assert len(rows) == 1
+    
+
+def test_login_is_locked_after_five_failures(client):
+    for _ in range(5):
+        client.post("/login", data={"username": "viewer1", "password": "wrong-password"})
+    response = client.post("/login", data={"username": "viewer1", "password": PASSWORD})
+    assert b"Too many failed attempts" in response.data
+    assert client.get("/dashboard").status_code == 302

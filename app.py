@@ -22,6 +22,7 @@ UPLOAD_FOLDER = Path(os.environ.get("UPLOAD_PATH", BASE_DIR / "uploads"))
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg", "docx", "xlsx"}
 CATEGORIES = ["Contract", "HR", "Finance", "Audit", "Other"]
+MAX_LOGIN_FAILURES = 5
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB limit
 
 
@@ -158,6 +159,19 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+
+        recent_failures = get_db().execute(
+            "SELECT COUNT(*) AS n FROM audit_log "
+            "WHERE action = 'login' AND allowed = 0 AND details = ? "
+            "AND timestamp >= datetime('now', '-15 minutes')",
+            ("username tried: " + username[:50],),
+        ).fetchone()["n"]
+        if recent_failures >= MAX_LOGIN_FAILURES:
+            log_event("login_locked", False,
+                      details="username tried: " + username[:50])
+            flash("Too many failed attempts. Try again in 15 minutes.")
+            return render_template("login.html")
+
         user = get_db().execute(
             "SELECT * FROM users WHERE username = ?", (username,)
         ).fetchone()
