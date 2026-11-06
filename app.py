@@ -123,6 +123,27 @@ def role_required(*roles):
     return decorator
 
 
+def csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(16)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def check_csrf():
+    if request.method == "POST":
+        sent = request.form.get("csrf_token", "")
+        expected = session.get("csrf_token", "")
+        if not expected or not secrets.compare_digest(sent.encode(), expected.encode()):
+            log_event("csrf_blocked", False,
+                      user_id=g.user["id"] if g.user else None,
+                      details=request.path)
+            abort(400)
+
+
 @app.route("/")
 def home():
     if g.user:

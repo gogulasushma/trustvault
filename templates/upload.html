@@ -2,6 +2,7 @@
 {% block content %}
 <h1>Upload a document</h1>
 <form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <p><input type="file" name="file" required></p>
   <p>
     <label>Category

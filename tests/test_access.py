@@ -10,6 +10,7 @@ import app as trustvault
 SCHEMA = Path(__file__).parent.parent / "schema.sql"
 PASSWORD = "test-password-123"
 CONTENT = b"secret content"
+TOKEN = "test-token"
 
 
 @pytest.fixture()
@@ -38,20 +39,30 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
+def post(client, url, data=None, **kwargs):
+    """POST a form the way a real browser does: with the CSRF token."""
+    with client.session_transaction() as sess:
+        sess["csrf_token"] = TOKEN
+    payload = dict(data or {})
+    payload["csrf_token"] = TOKEN
+    return client.post(url, data=payload, **kwargs)
+
+
 def login(client, username):
-    return client.post("/login", data={"username": username, "password": PASSWORD})
+    return post(client, "/login", {"username": username, "password": PASSWORD})
 
 
 def logout(client):
-    return client.post("/logout")
+    return post(client, "/logout")
 
 
 def owner_uploads_document(client, username="owner1"):
     """Owner uploads one file. In a fresh database it gets id 1."""
     login(client, username)
-    client.post(
+    post(
+        client,
         "/upload",
-        data={"file": (io.BytesIO(CONTENT), "secret.txt"), "category": "Other"},
+        {"file": (io.BytesIO(CONTENT), "secret.txt"), "category": "Other"},
         content_type="multipart/form-data",
     )
     logout(client)
@@ -60,9 +71,10 @@ def owner_uploads_document(client, username="owner1"):
 
 def owner_changes_access(client, action, target, username="owner1", doc_id=1):
     login(client, username)
-    response = client.post(
+    response = post(
+        client,
         f"/documents/{doc_id}/share",
-        data={"action": action, "username": target, "level": "read"},
+        {"action": action, "username": target, "level": "read"},
     )
     logout(client)
     return response
@@ -135,9 +147,10 @@ def test_viewer_cannot_share_a_document_with_read_access(client):
     owner_changes_access(client, "grant", "viewer1")
     login(client, "viewer1")
     assert client.get("/documents/1/share").status_code == 404
-    response = client.post(
+    response = post(
+        client,
         "/documents/1/share",
-        data={"action": "grant", "username": "viewer2", "level": "read"},
+        {"action": "grant", "username": "viewer2", "level": "read"},
     )
     assert response.status_code == 404
     logout(client)
@@ -147,9 +160,10 @@ def test_viewer_cannot_share_a_document_with_read_access(client):
 
 def test_viewer_cannot_upload(client):
     login(client, "viewer1")
-    response = client.post(
+    response = post(
+        client,
         "/upload",
-        data={"file": (io.BytesIO(b"x"), "x.txt"), "category": "Other"},
+        {"file": (io.BytesIO(b"x"), "x.txt"), "category": "Other"},
         content_type="multipart/form-data",
     )
     assert response.status_code == 403
@@ -184,11 +198,17 @@ def test_refused_attempts_are_in_the_audit_log(client):
     ).fetchall()
     conn.close()
     assert len(rows) == 1
-    
+
 
 def test_login_is_locked_after_five_failures(client):
     for _ in range(5):
-        client.post("/login", data={"username": "viewer1", "password": "wrong-password"})
-    response = client.post("/login", data={"username": "viewer1", "password": PASSWORD})
+        post(client, "/login", {"username": "viewer1", "password": "wrong-password"})
+    response = post(client, "/login", {"username": "viewer1", "password": PASSWORD})
     assert b"Too many failed attempts" in response.data
+    assert client.get("/dashboard").status_code == 302
+
+
+def test_post_without_csrf_token_is_rejected(client):
+    response = client.post("/login", data={"username": "viewer1", "password": PASSWORD})
+    assert response.status_code == 400
     assert client.get("/dashboard").status_code == 302

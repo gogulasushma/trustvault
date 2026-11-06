@@ -4,6 +4,7 @@
 
 <h2>Give access</h2>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="grant">
   <p><label>Username <input name="username" required></label></p>
   <p><label>Level
@@ -22,6 +23,7 @@
     <td>{{ grant.level }}</td>
     <td>
       <form method="post" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="revoke">
         <input type="hidden" name="username" value="{{ grant.username }}">
         <button type="submit">Revoke</button>
